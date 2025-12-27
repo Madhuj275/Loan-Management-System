@@ -1,0 +1,142 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model LoanProduct {
+  id                        String               @id @default(uuid())
+  name                      String
+  description               String?
+  minAmount                 Decimal              @db.Decimal(15, 2)
+  maxAmount                 Decimal              @db.Decimal(15, 2)
+  interestRate              Decimal              @db.Decimal(5, 2)
+  ltvRatio                  Decimal              @db.Decimal(5, 2)
+  minTenureMonths           Int
+  maxTenureMonths           Int
+  processingFeePercentage   Decimal              @db.Decimal(5, 2)
+  isActive                  Boolean              @default(true)
+  createdAt                 DateTime             @default(now())
+  updatedAt                 DateTime             @default(now())
+  
+  applications              LoanApplication[]
+  loans                     Loan[]
+  
+  @@map("loan_products")
+}
+
+model Customer {
+  id                  String               @id @default(uuid())
+  pan                 String               @unique
+  aadhaar             String?
+  fullName            String
+  email               String               @unique
+  phone               String
+  address             String?
+  bankAccountNumber   String?
+  bankIfsc            String?
+  bankName            String?
+  kycVerified         Boolean              @default(false)
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @default(now())
+  
+  applications        LoanApplication[]
+  loans               Loan[]
+  
+  @@map("customers")
+}
+
+model LoanApplication {
+  id                  String               @id @default(uuid())
+  applicationNumber   String               @unique
+  customerId          String
+  productId           String
+  requestedAmount     Decimal              @db.Decimal(15, 2)
+  tenureMonths        Int
+  status              String               @default("draft")
+  rejectionReason     String?
+  appliedAt           DateTime?
+  approvedAt          DateTime?
+  rejectedAt          DateTime?
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @default(now())
+  
+  customer            Customer             @relation(fields: [customerId], references: [id])
+  product             LoanProduct          @relation(fields: [productId], references: [id])
+  loans               Loan[]
+  collaterals         Collateral[]
+  
+  @@map("loan_applications")
+}
+
+model Loan {
+  id                      String               @id @default(uuid())
+  loanNumber              String               @unique
+  applicationId           String               @unique
+  customerId              String
+  productId               String
+  sanctionedAmount        Decimal              @db.Decimal(15, 2)
+  outstandingPrincipal    Decimal              @db.Decimal(15, 2)
+  outstandingInterest     Decimal              @default(0) @db.Decimal(15, 2)
+  interestRate            Decimal              @db.Decimal(5, 2)
+  tenureMonths            Int
+  disbursedAt             DateTime?
+  maturityDate            DateTime?
+  status                  String               @default("active")
+  createdAt               DateTime             @default(now())
+  updatedAt               DateTime             @default(now())
+  
+  application             LoanApplication      @relation(fields: [applicationId], references: [id])
+  customer                Customer             @relation(fields: [customerId], references: [id])
+  product                 LoanProduct          @relation(fields: [productId], references: [id])
+  collaterals             Collateral[]
+  transactions            Transaction[]
+  
+  @@map("loans")
+}
+
+model Collateral {
+  id                      String               @id @default(uuid())
+  loanApplicationId       String?
+  loanId                  String?
+  fundName                String
+  isin                    String
+  amcName                 String
+  folioNumber             String
+  unitsPledged            Decimal              @db.Decimal(15, 4)
+  currentNav              Decimal              @db.Decimal(10, 2)
+  currentValue            Decimal              @db.Decimal(15, 2)
+  lienStatus              String               @default("pending")
+  lienMarkedAt            DateTime?
+  lienReference           String?
+  createdAt               DateTime             @default(now())
+  updatedAt               DateTime             @default(now())
+  
+  loanApplication         LoanApplication?     @relation(fields: [loanApplicationId], references: [id])
+  loan                    Loan?                @relation(fields: [loanId], references: [id])
+  
+  @@map("collaterals")
+}
+
+model Transaction {
+  id                      String               @id @default(uuid())
+  transactionNumber       String               @unique
+  loanId                  String
+  type                    String
+  amount                  Decimal              @db.Decimal(15, 2)
+  description             String?
+  createdAt               DateTime             @default(now())
+  updatedAt               DateTime             @default(now())
+  
+  loan                    Loan                 @relation(fields: [loanId], references: [id])
+  
+  @@map("transactions")
+}
