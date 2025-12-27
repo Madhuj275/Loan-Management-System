@@ -472,13 +472,6 @@ model MarginCall {
 - **Loan** → **Transaction** (One-to-Many)
 - **Loan** → **MarginCall** (One-to-Many)
 
-## 🔐 Security Features
-
-- **Input Validation** - Zod schemas for all API endpoints
-- **Type Safety** - Full TypeScript implementation
-- **Database Security** - Parameterized queries via Prisma
-- **Environment Variables** - Sensitive data in environment variables
-- **CORS Protection** - Configured for production deployment
 
 ## 📱 Application Features
 
@@ -507,27 +500,4 @@ model MarginCall {
 - Interest calculation
 - Payment method integration
 
-## 🚀 Deployment
 
-### Production Build
-```bash
-npm run build
-npm start
-```
-
-### Environment Variables for Production
-```env
-DATABASE_URL=your_production_database_url
-NODE_ENV=production
-```
-
-## 📞 Support
-
-For technical support or questions:
-- Check the API documentation in `/api/*` routes
-- Review the database schema in `prisma/schema.prisma`
-- Examine the UI components in the `src/components` directory
-
-## 📄 License
-
-This project is proprietary software. All rights reserved.
