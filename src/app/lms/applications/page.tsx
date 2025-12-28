@@ -1,34 +1,18 @@
 "use client"
 
+import { useState, useEffect } from "react"
+import Link from "next/link"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Input } from "@/components/ui/input"
-import { Eye, Filter, Search, Download, CheckCircle, XCircle, Clock } from "lucide-react"
-import Link from "next/link"
-import { lmsService, LoanApplication } from "@/lib/services/lms-service"
-import { useEffect, useState } from "react"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Search, Filter, Eye, CheckCircle, XCircle, Clock, FileText, DollarSign, Plus } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
-
-const getStatusBadge = (status: string) => {
-  switch (status) {
-    case "draft":
-      return <Badge variant="outline" className="bg-gray-50 text-gray-700 border-gray-200">Draft</Badge>
-    case "pending":
-      return <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-200">Pending</Badge>
-    case "approved":
-      return <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">Approved</Badge>
-    case "rejected":
-      return <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200">Rejected</Badge>
-    case "disbursed":
-      return <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">Disbursed</Badge>
-    default:
-      return <Badge variant="outline">{status}</Badge>
-  }
-}
+import { lmsService } from "@/lib/services/lms-service"
+import type { LoanApplication } from "@/lib/services/lms-service"
 
 const getStatusIcon = (status: string) => {
   switch (status) {
@@ -63,7 +47,9 @@ export default function LoanApplicationsPage() {
   const loadLoanApplications = async () => {
     try {
       setLoading(true)
+      console.log('Loading loan applications...')
       const applications = await lmsService.getLoanApplications()
+      console.log('Loaded applications:', applications)
       setLoanApplications(applications)
     } catch (error) {
       console.error('Failed to load loan applications:', error)
@@ -87,39 +73,81 @@ export default function LoanApplicationsPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="container mx-auto py-8 space-y-6">
+      {/* Page Header */}
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Loan Applications</h1>
-          <p className="text-muted-foreground">
-            Track and manage all loan applications
-          </p>
+          <p className="text-muted-foreground">Manage and track all loan applications</p>
         </div>
-        <div className="flex space-x-2">
-          <Button variant="outline">
-            <Download className="mr-2 h-4 w-4" />
-            Export
+        <Link href="/lms/create-application">
+          <Button className="bg-blue-600 hover:bg-blue-700">
+            <Plus className="mr-2 h-4 w-4" />
+            New Application
           </Button>
-          <Link href="/lms/create-application">
-            <Button className="bg-blue-600 hover:bg-blue-700">
-              New Application
-            </Button>
-          </Link>
-        </div>
+        </Link>
       </div>
 
-      {/* Filters */}
+      {/* Summary Cards */}
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Applications</CardTitle>
+            <FileText className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{statusCounts.all}</div>
+            <p className="text-xs text-muted-foreground">All applications</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Pending</CardTitle>
+            <Clock className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{statusCounts.pending}</div>
+            <p className="text-xs text-muted-foreground">Awaiting review</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Approved</CardTitle>
+            <CheckCircle className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{statusCounts.approved}</div>
+            <p className="text-xs text-muted-foreground">Ready for disbursement</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Value</CardTitle>
+            <DollarSign className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {formatCurrency(loanApplications.reduce((sum, app) => sum + app.loanAmount, 0))}
+            </div>
+            <p className="text-xs text-muted-foreground">Total loan amount</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Search and Filters */}
       <Card>
-        <CardContent className="pt-6">
+        <CardHeader>
+          <CardTitle>Search Applications</CardTitle>
+          <CardDescription>Filter and search through loan applications</CardDescription>
+        </CardHeader>
+        <CardContent>
           <div className="flex flex-col md:flex-row gap-4">
-            <div className="flex-1">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                <Input
-                  placeholder="Search by application ID, customer name, or PAN..."
-                  className="pl-10"
-                />
-              </div>
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
+              <Input
+                placeholder="Search by application ID, customer name, or PAN..."
+                className="pl-10"
+              />
             </div>
             <div className="flex space-x-2">
               <Select defaultValue="all">
@@ -144,25 +172,50 @@ export default function LoanApplicationsPage() {
         </CardContent>
       </Card>
 
+      {/* Loading State */}
+      {loading && (
+        <Card>
+          <CardContent className="pt-6">
+            <div className="text-center py-8">
+              <p className="text-muted-foreground">Loading applications...</p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Empty State */}
+      {!loading && loanApplications.length === 0 && (
+        <Card>
+          <CardContent className="pt-6">
+            <div className="text-center py-8">
+              <p className="text-muted-foreground mb-4">No loan applications found</p>
+              <Link href="/lms/create-application">
+                <Button className="bg-blue-600 hover:bg-blue-700">
+                  Create First Application
+                </Button>
+              </Link>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Applications Table */}
-      <Tabs defaultValue="all" className="space-y-4">
-        <TabsList>
-          <TabsTrigger value="all">All ({statusCounts.all})</TabsTrigger>
-          <TabsTrigger value="draft">Draft ({statusCounts.draft})</TabsTrigger>
-          <TabsTrigger value="pending">Pending ({statusCounts.pending})</TabsTrigger>
-          <TabsTrigger value="approved">Approved ({statusCounts.approved})</TabsTrigger>
-          <TabsTrigger value="rejected">Rejected ({statusCounts.rejected})</TabsTrigger>
-          <TabsTrigger value="disbursed">Disbursed ({statusCounts.disbursed})</TabsTrigger>
-        </TabsList>
-        
-        {Object.keys(statusCounts).filter(key => key !== 'all').map(status => (
-          <TabsContent key={status} value={status} className="space-y-4">
+      {!loading && loanApplications.length > 0 && (
+        <Tabs defaultValue="all" className="space-y-4">
+          <TabsList>
+            <TabsTrigger value="all">All ({statusCounts.all})</TabsTrigger>
+            <TabsTrigger value="draft">Draft ({statusCounts.draft})</TabsTrigger>
+            <TabsTrigger value="pending">Pending ({statusCounts.pending})</TabsTrigger>
+            <TabsTrigger value="approved">Approved ({statusCounts.approved})</TabsTrigger>
+            <TabsTrigger value="rejected">Rejected ({statusCounts.rejected})</TabsTrigger>
+            <TabsTrigger value="disbursed">Disbursed ({statusCounts.disbursed})</TabsTrigger>
+          </TabsList>
+          
+          {/* All Applications Tab */}
+          <TabsContent value="all" className="space-y-4">
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center space-x-2">
-                  {getStatusIcon(status)}
-                  <span>{status.charAt(0).toUpperCase() + status.slice(1)} Applications</span>
-                </CardTitle>
+                <CardTitle>All Applications</CardTitle>
               </CardHeader>
               <CardContent>
                 <Table>
@@ -175,50 +228,135 @@ export default function LoanApplicationsPage() {
                       <TableHead>Tenure</TableHead>
                       <TableHead>Collateral Value</TableHead>
                       <TableHead>LTV</TableHead>
+                      <TableHead>Status</TableHead>
                       <TableHead>Applied Date</TableHead>
                       <TableHead>Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {loanApplications
-                      .filter(app => app.status === status)
-                      .map((app) => (
-                        <TableRow key={app.id}>
-                          <TableCell className="font-medium">{app.id}</TableCell>
-                          <TableCell>
-                            <div>
-                              <p className="font-medium">{app.customerName}</p>
-                              <p className="text-sm text-muted-foreground">{app.customerPan}</p>
-                            </div>
-                          </TableCell>
-                          <TableCell>{app.loanProductId}</TableCell>
-                          <TableCell>{formatCurrency(app.loanAmount)}</TableCell>
-                          <TableCell>{app.tenureMonths} months</TableCell>
-                          <TableCell>{formatCurrency(app.collateralValue)}</TableCell>
-                          <TableCell>
-                            <Badge variant={app.currentLtv > 100 ? "destructive" : "default"}>
-                              {app.currentLtv.toFixed(1)}%
-                            </Badge>
-                          </TableCell>
-                          <TableCell>{new Date(app.createdAt).toLocaleDateString()}</TableCell>
-                          <TableCell>
-                            <div className="flex space-x-2">
-                              <Link href={`/lms/applications/${app.id}`}>
-                                <Button variant="ghost" size="sm">
-                                  <Eye className="h-4 w-4" />
-                                </Button>
-                              </Link>
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      ))}
+                    {loanApplications.map((app) => (
+                      <TableRow key={app.id}>
+                        <TableCell className="font-medium">{app.id}</TableCell>
+                        <TableCell>
+                          <div>
+                            <p className="font-medium">{app.customerName}</p>
+                            <p className="text-sm text-muted-foreground">{app.customerPan}</p>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div>
+                            <p className="font-medium">{app.loanProductName || 'Unknown Product'}</p>
+                            <p className="text-sm text-muted-foreground">{app.loanProductId}</p>
+                          </div>
+                        </TableCell>
+                        <TableCell>{formatCurrency(app.loanAmount)}</TableCell>
+                        <TableCell>{app.tenureMonths} months</TableCell>
+                        <TableCell>{formatCurrency(app.collateralValue)}</TableCell>
+                        <TableCell>
+                          <Badge variant={app.currentLtv > 100 ? "destructive" : "default"}>
+                            {app.currentLtv.toFixed(1)}%
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant={
+                            app.status === 'approved' ? 'default' :
+                            app.status === 'pending' ? 'secondary' :
+                            app.status === 'rejected' ? 'destructive' :
+                            'outline'
+                          }>
+                            {getStatusIcon(app.status)}
+                            <span className="ml-1">{app.status.charAt(0).toUpperCase() + app.status.slice(1)}</span>
+                          </Badge>
+                        </TableCell>
+                        <TableCell>{new Date(app.createdAt).toLocaleDateString()}</TableCell>
+                        <TableCell>
+                          <div className="flex space-x-2">
+                            <Link href={`/lms/applications/${app.id}`}>
+                              <Button variant="ghost" size="sm">
+                                <Eye className="h-4 w-4" />
+                              </Button>
+                            </Link>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
                   </TableBody>
                 </Table>
               </CardContent>
             </Card>
           </TabsContent>
-        ))}
-      </Tabs>
+          
+          {/* Individual Status Tabs */}
+          {Object.keys(statusCounts).filter(key => key !== 'all').map(status => (
+            <TabsContent key={status} value={status} className="space-y-4">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center space-x-2">
+                    {getStatusIcon(status)}
+                    <span>{status.charAt(0).toUpperCase() + status.slice(1)} Applications</span>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Application ID</TableHead>
+                        <TableHead>Customer</TableHead>
+                        <TableHead>Product</TableHead>
+                        <TableHead>Amount</TableHead>
+                        <TableHead>Tenure</TableHead>
+                        <TableHead>Collateral Value</TableHead>
+                        <TableHead>LTV</TableHead>
+                        <TableHead>Applied Date</TableHead>
+                        <TableHead>Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {loanApplications
+                        .filter(app => app.status === status)
+                        .map((app) => (
+                          <TableRow key={app.id}>
+                            <TableCell className="font-medium">{app.id}</TableCell>
+                            <TableCell>
+                              <div>
+                                <p className="font-medium">{app.customerName}</p>
+                                <p className="text-sm text-muted-foreground">{app.customerPan}</p>
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <div>
+                                <p className="font-medium">{app.loanProductName || 'Unknown Product'}</p>
+                                <p className="text-sm text-muted-foreground">{app.loanProductId}</p>
+                              </div>
+                            </TableCell>
+                            <TableCell>{formatCurrency(app.loanAmount)}</TableCell>
+                            <TableCell>{app.tenureMonths} months</TableCell>
+                            <TableCell>{formatCurrency(app.collateralValue)}</TableCell>
+                            <TableCell>
+                              <Badge variant={app.currentLtv > 100 ? "destructive" : "default"}>
+                                {app.currentLtv.toFixed(1)}%
+                              </Badge>
+                            </TableCell>
+                            <TableCell>{new Date(app.createdAt).toLocaleDateString()}</TableCell>
+                            <TableCell>
+                              <div className="flex space-x-2">
+                                <Link href={`/lms/applications/${app.id}`}>
+                                  <Button variant="ghost" size="sm">
+                                    <Eye className="h-4 w-4" />
+                                  </Button>
+                                </Link>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                    </TableBody>
+                  </Table>
+                </CardContent>
+              </Card>
+            </TabsContent>
+          ))}
+        </Tabs>
+      )}
     </div>
   )
 }

@@ -118,3 +118,5 @@ VERCEL_DEPLOYMENT_GUIDE.md
 .ideavo/project
 
 /src/generated/prisma
+test-api.js
+seed-loan-products.js

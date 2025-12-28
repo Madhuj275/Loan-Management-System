@@ -1,101 +1,43 @@
 import { NextResponse, NextRequest } from "next/server"
-
-// Mock loan applications data
-const mockLoanApplications = [
-  {
-    application: {
-      id: "1",
-      customerId: "1",
-      productId: "1",
-      loanAmount: 500000,
-      tenureMonths: 12,
-      interestRate: 10.5,
-      ltvRatio: 50,
-      collateralValue: 1000000,
-      status: "approved",
-      monthlyIncome: 75000,
-      employmentType: "salaried",
-      createdAt: new Date("2024-01-15"),
-      updatedAt: new Date("2024-01-20")
-    },
-    customer: {
-      id: "1",
-      firstName: "Rahul",
-      lastName: "Sharma",
-      email: "rahul.sharma@email.com",
-      phone: "+91-9876543210",
-      pan: "ABCDE1234F",
-      dateOfBirth: new Date("1985-06-15"),
-      address: "123, MG Road, Mumbai",
-      createdAt: new Date("2024-01-10"),
-      updatedAt: new Date("2024-01-10")
-    },
-    product: {
-      id: "1",
-      name: "Equity Mutual Fund Loan",
-      description: "Loan against equity mutual funds with competitive rates",
-      minAmount: 100000,
-      maxAmount: 5000000,
-      interestRate: 10.5,
-      ltvRatio: 50,
-      minTenureMonths: 6,
-      maxTenureMonths: 36,
-      processingFeePercentage: 1.5,
-      isActive: true,
-      createdAt: new Date("2024-01-15"),
-      updatedAt: new Date("2024-01-15")
-    }
-  },
-  {
-    application: {
-      id: "2",
-      customerId: "2",
-      productId: "2",
-      loanAmount: 750000,
-      tenureMonths: 24,
-      interestRate: 9.0,
-      ltvRatio: 70,
-      collateralValue: 1071429,
-      status: "pending",
-      monthlyIncome: 100000,
-      employmentType: "self_employed",
-      createdAt: new Date("2024-01-20"),
-      updatedAt: new Date("2024-01-20")
-    },
-    customer: {
-      id: "2",
-      firstName: "Priya",
-      lastName: "Patel",
-      email: "priya.patel@email.com",
-      phone: "+91-9123456789",
-      pan: "FGHIJ5678K",
-      dateOfBirth: new Date("1982-03-22"),
-      address: "456, SV Road, Pune",
-      createdAt: new Date("2024-01-18"),
-      updatedAt: new Date("2024-01-18")
-    },
-    product: {
-      id: "2",
-      name: "Debt Mutual Fund Loan",
-      description: "Loan against debt mutual funds with lower interest rates",
-      minAmount: 50000,
-      maxAmount: 2000000,
-      interestRate: 9.0,
-      ltvRatio: 70,
-      minTenureMonths: 3,
-      maxTenureMonths: 24,
-      processingFeePercentage: 1.0,
-      isActive: true,
-      createdAt: new Date("2024-01-20"),
-      updatedAt: new Date("2024-01-20")
-    }
-  }
-]
+import { prisma } from "@/lib/prisma"
 
 // GET all loan applications
 export async function GET() {
   try {
-    return NextResponse.json(mockLoanApplications)
+    const applications = await prisma.loanApplication.findMany({
+      include: {
+        customer: true,
+        product: true,
+        collaterals: true,
+      },
+      orderBy: {
+        createdAt: 'desc'
+      }
+    })
+
+    // Transform the data to match what the frontend expects
+    const transformedApplications = applications.map(app => ({
+      id: app.id,
+      applicationNumber: app.applicationNumber,
+      customerName: app.customer.fullName,
+      customerPan: app.customer.pan,
+      customerEmail: app.customer.email,
+      customerPhone: app.customer.phone,
+      loanAmount: Number(app.requestedAmount),
+      interestRate: Number(app.product.interestRate),
+      tenureMonths: app.tenureMonths,
+      loanProductId: app.productId,
+      loanProductName: app.product.name,
+      status: app.status,
+      collateralValue: app.collaterals.reduce((sum, collateral) => sum + Number(collateral.currentValue), 0),
+      currentLtv: app.collaterals.reduce((sum, collateral) => sum + Number(collateral.currentValue), 0) > 0 
+        ? (Number(app.requestedAmount) / app.collaterals.reduce((sum, collateral) => sum + Number(collateral.currentValue), 0)) * 100 
+        : 0,
+      createdAt: app.createdAt,
+      updatedAt: app.updatedAt
+    }))
+
+    return NextResponse.json(transformedApplications)
   } catch (error) {
     console.error("Failed to fetch loan applications:", error)
     return NextResponse.json({ error: "Failed to fetch loan applications" }, { status: 500 })
@@ -107,46 +49,152 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
     
-    // Mock application creation
-    const newApplication = {
-      application: {
-        id: String(mockLoanApplications.length + 1),
-        ...body,
-        createdAt: new Date(),
-        updatedAt: new Date()
-      },
-      customer: {
-        id: String(mockLoanApplications.length + 1),
-        firstName: "New",
-        lastName: "Customer",
-        email: "new.customer@email.com",
-        phone: "+91-9999999999",
-        pan: "NEW1234567",
-        dateOfBirth: new Date("1990-01-01"),
-        address: "New Address",
-        createdAt: new Date(),
-        updatedAt: new Date()
-      },
-      product: {
-        id: body.productId,
-        name: "Selected Product",
-        description: "Product description",
-        minAmount: 100000,
-        maxAmount: 5000000,
-        interestRate: 10.0,
-        ltvRatio: 60,
-        minTenureMonths: 6,
-        maxTenureMonths: 36,
-        processingFeePercentage: 1.5,
-        isActive: true,
-        createdAt: new Date(),
-        updatedAt: new Date()
-      }
+    // Validate required data
+    if (!body.customerInfo || !body.loanDetails || !body.collaterals) {
+      return NextResponse.json({ error: "Missing required data" }, { status: 400 })
     }
     
-    return NextResponse.json(newApplication, { status: 201 })
+    // Generate application number
+    const applicationNumber = `APP${Date.now().toString().slice(-8)}`
+    
+    // First, find or create the customer
+    let customer = await prisma.customer.findUnique({
+      where: { pan: body.customerInfo.pan }
+    })
+
+    if (!customer) {
+      // Check if email is already taken by another customer
+      const existingEmailCustomer = await prisma.customer.findUnique({
+        where: { email: body.customerInfo.email }
+      })
+
+      if (existingEmailCustomer) {
+        // If email exists but different PAN, we need to handle this case
+        // For now, we'll use the existing customer with that email
+        customer = existingEmailCustomer
+        // Update the PAN if it's different (though this shouldn't happen in practice)
+        if (existingEmailCustomer.pan !== body.customerInfo.pan) {
+          // This is a business logic decision - you might want to reject or handle differently
+          console.warn(`Email ${body.customerInfo.email} already exists with different PAN: ${existingEmailCustomer.pan} vs ${body.customerInfo.pan}`)
+        }
+      } else {
+        // Create new customer
+        customer = await prisma.customer.create({
+          data: {
+            pan: body.customerInfo.pan,
+            aadhaar: body.customerInfo.aadhaar || null,
+            fullName: body.customerInfo.fullName,
+            email: body.customerInfo.email,
+            phone: body.customerInfo.phone,
+            address: body.customerInfo.address || null,
+            bankAccountNumber: body.customerInfo.bankAccountNumber || null,
+            bankIfsc: body.customerInfo.bankIfsc || null,
+            bankName: body.customerInfo.bankName || null,
+          }
+        })
+      }
+    } else {
+      // Customer exists with this PAN, verify email matches
+      if (customer.email !== body.customerInfo.email) {
+        console.warn(`Customer with PAN ${body.customerInfo.pan} has different email: ${customer.email} vs ${body.customerInfo.email}`)
+        // Update customer email to match the new application
+        customer = await prisma.customer.update({
+          where: { id: customer.id },
+          data: { 
+            email: body.customerInfo.email,
+            fullName: body.customerInfo.fullName,
+            phone: body.customerInfo.phone,
+            address: body.customerInfo.address || null,
+            bankAccountNumber: body.customerInfo.bankAccountNumber || null,
+            bankIfsc: body.customerInfo.bankIfsc || null,
+            bankName: body.customerInfo.bankName || null,
+          }
+        })
+      }
+    }
+
+    // Get the selected product
+    const product = await prisma.loanProduct.findUnique({
+      where: { id: body.loanDetails.productId }
+    })
+
+    if (!product) {
+      return NextResponse.json({ error: "Invalid loan product" }, { status: 400 })
+    }
+
+    // Calculate total collateral value
+    const totalCollateralValue = body.collaterals.reduce((sum: number, collateral: any) => {
+      const units = parseFloat(collateral.unitsPledged) || 0
+      const nav = parseFloat(collateral.currentNav) || 0
+      return sum + (units * nav)
+    }, 0)
+
+    // Create the loan application
+    const application = await prisma.loanApplication.create({
+      data: {
+        applicationNumber,
+        customerId: customer.id,
+        productId: product.id,
+        requestedAmount: parseFloat(body.loanDetails.requestedAmount) || 0,
+        tenureMonths: parseInt(body.loanDetails.tenureMonths) || 0,
+        status: 'pending',
+        appliedAt: new Date(),
+        collaterals: {
+          create: body.collaterals.map((collateral: any) => ({
+            fundName: collateral.fundName,
+            isin: collateral.isin,
+            amcName: collateral.amcName,
+            folioNumber: collateral.folioNumber,
+            unitsPledged: parseFloat(collateral.unitsPledged) || 0,
+            currentNav: parseFloat(collateral.currentNav) || 0,
+            currentValue: (parseFloat(collateral.unitsPledged) || 0) * (parseFloat(collateral.currentNav) || 0),
+          }))
+        }
+      },
+      include: {
+        customer: true,
+        product: true,
+        collaterals: true,
+      }
+    })
+
+    // Transform the response to match frontend expectations
+    const transformedApplication = {
+      id: application.id,
+      applicationNumber: application.applicationNumber,
+      customerName: application.customer.fullName,
+      customerPan: application.customer.pan,
+      customerEmail: application.customer.email,
+      customerPhone: application.customer.phone,
+      loanAmount: Number(application.requestedAmount),
+      interestRate: Number(application.product.interestRate),
+      tenureMonths: application.tenureMonths,
+      loanProductId: application.productId,
+      status: application.status,
+      collateralValue: totalCollateralValue,
+      currentLtv: (Number(application.requestedAmount) / totalCollateralValue) * 100,
+      createdAt: application.createdAt,
+      updatedAt: application.updatedAt
+    }
+    
+    return NextResponse.json(transformedApplication, { status: 201 })
   } catch (error) {
     console.error("Failed to create loan application:", error)
+    
+    // Handle Prisma unique constraint violations
+    if (error instanceof Error && error.message.includes('Unique constraint failed')) {
+      if (error.message.includes('email')) {
+        return NextResponse.json({ error: "A customer with this email already exists" }, { status: 400 })
+      }
+      if (error.message.includes('pan')) {
+        return NextResponse.json({ error: "A customer with this PAN already exists" }, { status: 400 })
+      }
+      return NextResponse.json({ error: "Duplicate data found. Please check your information." }, { status: 400 })
+    }
+    
+    if (error instanceof Error) {
+      return NextResponse.json({ error: error.message }, { status: 500 })
+    }
     return NextResponse.json({ error: "Failed to create loan application" }, { status: 500 })
   }
 }

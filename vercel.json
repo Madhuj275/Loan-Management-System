@@ -1,0 +1,8 @@
+{
+  "buildCommand": "prisma generate && next build",
+  "installCommand": "npm install",
+  "framework": "nextjs",
+  "env": {
+    "DATABASE_URL": "postgresql://neondb_owner:npg_Ts4KZfrOb3Wl@ep-shiny-block-adq81ttt-pooler.c-2.us-east-1.aws.neon.tech/ai_support_db?sslmode=require"
+  }
+}

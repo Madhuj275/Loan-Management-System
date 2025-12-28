@@ -27,6 +27,7 @@ export interface LoanApplication {
   interestRate: number
   tenureMonths: number
   loanProductId: string
+  loanProductName?: string
   status: "draft" | "pending" | "approved" | "rejected" | "disbursed"
   collateralValue: number
   currentLtv: number

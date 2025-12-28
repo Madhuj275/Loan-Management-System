@@ -1,6 +1,7 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
+import { useRouter } from "next/navigation"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -11,6 +12,7 @@ import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Plus, Trash2, Calculator, Save, Send } from "lucide-react"
 import { toast } from "@/hooks/use-toast"
+import { lmsService, LoanProduct } from "@/lib/services/lms-service"
 
 interface Collateral {
   id: string
@@ -23,45 +25,12 @@ interface Collateral {
   currentValue: number
 }
 
-const loanProducts = [
-  {
-    id: "1",
-    name: "Equity Mutual Fund Loan",
-    minAmount: 100000,
-    maxAmount: 10000000,
-    interestRate: 10.5,
-    ltvRatio: 50,
-    minTenure: 6,
-    maxTenure: 36,
-    processingFeePercentage: 1.5,
-  },
-  {
-    id: "2",
-    name: "Debt Mutual Fund Loan",
-    minAmount: 50000,
-    maxAmount: 5000000,
-    interestRate: 9.5,
-    ltvRatio: 75,
-    minTenure: 3,
-    maxTenure: 24,
-    processingFeePercentage: 1.0,
-  },
-  {
-    id: "3",
-    name: "Hybrid Fund Loan",
-    minAmount: 200000,
-    maxAmount: 7500000,
-    interestRate: 11.0,
-    ltvRatio: 60,
-    minTenure: 6,
-    maxTenure: 30,
-    processingFeePercentage: 1.25,
-  },
-]
-
 export default function CreateLoanApplication() {
+  const router = useRouter()
   const [step, setStep] = useState(1)
   const [isLoading, setIsLoading] = useState(false)
+  const [loanProducts, setLoanProducts] = useState<LoanProduct[]>([])
+  const [productsLoading, setProductsLoading] = useState(true)
   
   // Customer Information
   const [customerInfo, setCustomerInfo] = useState({
@@ -83,6 +52,28 @@ export default function CreateLoanApplication() {
     tenureMonths: "",
     purpose: "",
   })
+
+  // Load loan products on component mount
+  useEffect(() => {
+    loadLoanProducts()
+  }, [])
+
+  const loadLoanProducts = async () => {
+    try {
+      setProductsLoading(true)
+      const products = await lmsService.getLoanProducts()
+      setLoanProducts(products)
+    } catch (error) {
+      console.error('Failed to load loan products:', error)
+      toast({
+        title: 'Error',
+        description: 'Failed to load loan products',
+        variant: 'destructive',
+      })
+    } finally {
+      setProductsLoading(false)
+    }
+  }
 
   // Collaterals
   const [collaterals, setCollaterals] = useState<Collateral[]>([])
@@ -248,12 +239,38 @@ export default function CreateLoanApplication() {
     setIsLoading(true)
     
     try {
+      // Convert string values to proper data types for API
       const applicationData = {
-        customerInfo,
-        loanDetails,
-        collaterals,
-        totalCollateralValue: getTotalCollateralValue(),
-        maxEligibleAmount: getMaxEligibleAmount(),
+        customerInfo: {
+          ...customerInfo,
+          pan: customerInfo.pan.toUpperCase(),
+        },
+        loanDetails: {
+          ...loanDetails,
+          requestedAmount: parseFloat(loanDetails.requestedAmount),
+          tenureMonths: parseInt(loanDetails.tenureMonths),
+        },
+        collaterals: collaterals.map(collateral => ({
+          fundName: collateral.fundName,
+          isin: collateral.isin,
+          amcName: collateral.amcName,
+          folioNumber: collateral.folioNumber,
+          unitsPledged: parseFloat(collateral.unitsPledged.toString()),
+          currentNav: parseFloat(collateral.currentNav.toString()),
+        })),
+      }
+
+      // Validate required fields
+      if (!customerInfo.pan || !customerInfo.fullName || !customerInfo.email || !customerInfo.phone) {
+        throw new Error('Please fill in all required customer information')
+      }
+
+      if (!loanDetails.productId || !loanDetails.requestedAmount || !loanDetails.tenureMonths) {
+        throw new Error('Please fill in all required loan details')
+      }
+
+      if (collaterals.length === 0) {
+        throw new Error('Please add at least one collateral')
       }
 
       const response = await fetch('/api/loan-applications', {
@@ -265,7 +282,8 @@ export default function CreateLoanApplication() {
       })
 
       if (!response.ok) {
-        throw new Error('Failed to create application')
+        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }))
+        throw new Error(errorData.error || 'Failed to create application')
       }
 
       const result = await response.json()
@@ -275,31 +293,14 @@ export default function CreateLoanApplication() {
         description: `Loan application created successfully. Application ID: ${result.applicationNumber}`,
       })
 
-      // Reset form
-      setStep(1)
-      setCustomerInfo({
-        pan: "",
-        aadhaar: "",
-        fullName: "",
-        email: "",
-        phone: "",
-        address: "",
-        bankAccountNumber: "",
-        bankIfsc: "",
-        bankName: "",
-      })
-      setLoanDetails({
-        productId: "",
-        requestedAmount: "",
-        tenureMonths: "",
-        purpose: "",
-      })
-      setCollaterals([])
+      // Redirect to applications page after successful creation
+      router.push('/lms/applications')
 
     } catch (error) {
+      console.error('Loan application submission error:', error)
       toast({
         title: "Error",
-        description: "Failed to create loan application",
+        description: error instanceof Error ? error.message : "Failed to create loan application",
         variant: "destructive",
       })
     } finally {
@@ -457,9 +458,21 @@ export default function CreateLoanApplication() {
             <div className="space-y-4">
               <div>
                 <Label htmlFor="productId">Loan Product *</Label>
-                <Select value={loanDetails.productId} onValueChange={(value) => setLoanDetails({ ...loanDetails, productId: value })}>
+                <Select 
+                  value={loanDetails.productId} 
+                  onValueChange={(value) => setLoanDetails({ ...loanDetails, productId: value })}
+                  disabled={productsLoading || loanProducts.length === 0}
+                >
                   <SelectTrigger id="productId">
-                    <SelectValue placeholder="Select a loan product" />
+                    <SelectValue 
+                      placeholder={
+                        productsLoading 
+                          ? "Loading loan products..." 
+                          : loanProducts.length === 0 
+                            ? "No loan products available" 
+                            : "Select a loan product"
+                      } 
+                    />
                   </SelectTrigger>
                   <SelectContent>
                     {loanProducts.map((product) => (
@@ -492,7 +505,7 @@ export default function CreateLoanApplication() {
                       <div>
                         <p className="text-muted-foreground">Tenure Range</p>
                         <p className="font-medium">
-                          {getSelectedProduct()!.minTenure} - {getSelectedProduct()!.maxTenure} months
+                          {getSelectedProduct()!.minTenureMonths} - {getSelectedProduct()!.maxTenureMonths} months
                         </p>
                       </div>
                     </div>
