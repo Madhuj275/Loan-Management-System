@@ -13,8 +13,7 @@ A comprehensive web application for managing loan products, applications, and cu
 
 1. **Clone the repository**
    ```bash
-   git clone <repository-url>
-   cd <project-directory>
+   git clone https://github.com/Madhuj275/Loan-Management-System.git
    ```
 
 2. **Install dependencies**
@@ -27,7 +26,7 @@ A comprehensive web application for managing loan products, applications, and cu
 3. **Environment Setup**
    Create a `.env.local` file in the root directory with:
    ```env
-   DATABASE_URL=postgresql://neondb_owner:npg_Ts4KZfrOb3Wl@ep-shiny-block-adq81ttt-pooler.c-2.us-east-1.aws.neon.tech/ai_support_db?sslmode=require
+   DATABASE_URL=postgresql://neondb_owner:,password>@ep-shiny-block-adq81ttt-pooler.c-2.us-east-1.aws.neon.tech/ai_support_db?sslmode=require
    ```
 
 4. **Database Setup**
